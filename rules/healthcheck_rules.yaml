@@ -1,0 +1,322 @@
+metadata:
+  name: solace_appliance_health_check
+  source: "Solace Appliance Broker Health Check"
+  source_url: "https://docs.solace.com/Appliance/broker-appliance-health-check.htm"
+  version: 1
+
+rules:
+
+  # Part 1 — Chassis and Broker Release (SolOS)
+  - section: "1.1"
+    description: "Installed SolOS release is currently supported."
+    command: "show version"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: supported_version_check
+        lifecycle:
+          - version: "10.8.1"
+            end_of_full_support: "2027-06-15"
+            end_of_technical_support: "2027-06-15"
+            release_type: "LTS"
+
+          - version: "10.9.1"
+            end_of_full_support: "2025-09-15"
+            end_of_technical_support: "2027-09-15"
+
+          - version: "10.10.1"
+            end_of_full_support: "2025-12-15"
+            end_of_technical_support: "2027-12-15"
+
+          - version: "10.11.1"
+            end_of_full_support: "2026-03-15"
+            end_of_technical_support: "2028-03-15"
+        failure_message: "Installed SolOS release is out of support." 
+
+  - section: "1.2"
+    description: "Chassis product number is currently supported."
+    command: "show hardware detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: supported_chassis_check
+        lifecycle:
+          - product_number: "CHS-3530AC-02-A"
+            end_of_sales: "2021-12-01"
+            end_of_support: "2026-12-01"
+
+          - product_number: "CHS-3560AC-03-A"
+            end_of_sales: "2021-12-01"
+            end_of_support: "2026-12-01"
+
+          - product_number: "CHS-3560AC-06-A"
+            end_of_sales: "2021-12-01"
+            end_of_support: "2026-12-01"
+
+          - product_number: "CHS-3530AC-03-A"
+            end_of_sales: "2025-03-31"
+            end_of_support: "2030-03-31"
+        failure_message: "Chassis product is out of support."
+
+  # Part 2 — System Stability
+  - section: "2.1"
+    description: "Uptime and last restart reason checked."
+    command: "show system"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "System Uptime"
+        failure_message: "Missing system uptime from diagnostics."
+      - type: contains
+        expected: "Last Restart Reason"
+        failure_message: "Missing last restart reason."
+      - type: print_info_fields
+        fields:
+          - label: "System Uptime"
+            pattern: "System Uptime\\s*:\\s*(.+)"
+          - label: "Last Restart Reason"
+            pattern: "Last Restart Reason\\s*:\\s*(.+)"
+
+  - section: "2.2"
+    description: "No recent critical SYSTEM_* events."
+    sources:
+      - "event.log"
+      - "system.log"
+    checks:
+     - type: log_paired_events
+       patterns:
+         - "SYSTEM_CHASSIS_"
+         - "SYSTEM_SYSTEM_HEALTH_"
+       exclude_patterns:
+         - "INIT to UP"
+       failure_message: "Critical SYSTEM_* events found in logs."
+
+  - section: "2.3"
+    description: "Power-On Self Test (POST) passed."
+    command: "show system post"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "PASSED"
+        failure_message: "POST status is not PASSED."
+
+  - section: "2.4"
+    description: "No active alarms."
+    command: "show alarm"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: alarm_check
+
+  # Part 3 — Hardware Status Checks
+  - section: "3.1"
+    description: "Power Module status"
+    command: "show hardware detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Operational power supplies:     2"
+        failure_message: "Only one Operational Power Supply."
+      - type: contains
+        expected: "Power module 1:                 OK"
+        failure_message: "Power module 1: Not Operational."
+      - type: contains
+        expected: "Power module 2:                 OK"
+        failure_message: "Power module 2: Not Operational."
+
+  - section: "3.2"
+    description: "Network Acceleration Blade interface members"
+    command: "show interface detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Configured members"
+        failure_message: "Missing configured members in interface detail."
+
+  - section: "3.3"
+    description: "Host Bus Adapter (HBA) Link Up"
+    command: "show interface detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: hba_status_check
+
+  - section: "3.4"
+    description: "Assured Delivery Blade (ADB) status"
+    command: "show hardware detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: adb_status_check
+
+  # Part 4 — Network Connectivity
+  - section: "4.A"
+    description: "Checking for PTP Server Connectivity"
+    info_message: "Clock sync protocol in use: PTP"
+    selector: "Protocol: PTP"
+    command: "show clock detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Protocol: PTP"
+        failure_message: "Protocol is not PTP."
+      - type: contains
+        expected: "Enabled: Yes"
+        failure_message: "PTP is not enabled."
+      - type: contains
+        expected: "PTP In Sync: Yes"
+        failure_message: "PTP is not in sync."
+
+  - section: "4.B"
+    description: "Checking for NTP Server Connectivity"
+    info_message: "Clock sync protocol in use: NTP"
+    selector: "Protocol: NTP"
+    command: "show clock detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Protocol: NTP"
+        failure_message: "Protocol is not NTP."
+      - type: contains
+        expected: "Enabled: Yes"
+        failure_message: "NTP is not enabled."
+      - type: regex
+        pattern: "NTP Reachable:\\s+Yes"
+        failure_message: "NTP server is not reachable."
+
+  - section: "4.2"
+    description: "DNS servers reachable"
+    source: "debug.log"
+    checks:
+      - type: dns_log_check
+
+  # Part 5 — Message Spool
+  - section: "5.1"
+    description: "Message spool operational"
+    command: "show message-spool detail"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: message_spool_status_check
+
+  # Part 6 — Redundancy
+  # 6.1.A — Active/Active
+  - section: "6.1.A.i"
+    description: "Redundancy Checks"
+    info_message: "Active/Active redundancy (Non-Guaranteed messaging)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Active"
+        failure_message: "Redundancy not configured for Active/Active."
+      - type: not_contains_regex
+        pattern: "Message Spool Status\\s+AD-Active"
+        failure_message: "Message spool should NOT be AD-Active for non-guaranteed messaging."
+
+  - section: "6.1.A.ii"
+    description: "Redundancy Checks"
+    info_message: "Active/Active redundancy (Guaranteed messaging — primary appliance)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Active"
+        failure_message: "Redundancy not configured for Active/Active."
+      - type: regex
+        pattern: "Message Spool Status\\s+AD-Active"
+        failure_message: "Message spool must be AD-Active for guaranteed messaging."
+      - type: not_contains_regex
+        pattern: "Message Spool Status\\s+AD-Standby"
+        failure_message: "Message spool should not be AD-Standby on primary appliance."
+
+  - section: "6.1.A.iii"
+    description: "Redundancy Checks"
+    info_message: "Active/Active redundancy (Guaranteed messaging — secondary appliance)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Active"
+        failure_message: "Redundancy not configured for Active/Active."
+      - type: regex
+        pattern: "Message Spool Status\\s+AD-Standby"
+        failure_message: "Message spool must be AD-Standby for guaranteed messaging (secondary appliance)."
+      - type: not_contains_regex
+        pattern: "Message Spool Status\\s+AD-Active"
+        failure_message: "Message spool should not be AD-Active on secondary appliance."
+
+
+  # 6.1.B — Active/Standby
+  - section: "6.1.B.i"
+    description: "Redundancy Checks"
+    info_message: "Active/Standby redundancy (Non-Guaranteed messaging)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Standby"
+        failure_message: "Redundancy not configured for Active/Standby."
+      - type: contains
+        expected: "Active-Standby Role      : Primary"
+        failure_message: "Active/Standby role not Primary as expected."
+      - type: not_contains_regex
+        pattern: "Message Spool Status\\s+Enabled"
+        failure_message: "Message spool should not be enabled for non-guaranteed messaging."
+
+  - section: "6.1.B.ii"
+    description: "Redundancy Checks"
+    info_message: "Active/Standby redundancy (Guaranteed messaging)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Standby"
+        failure_message: "Redundancy not configured for Active/Standby."
+      - type: contains
+        expected: "Active-Standby Role      : Primary"
+        failure_message: "Active/Standby role not Primary as expected."
+      - type: contains
+        expected: "Message Spool Status     : Enabled"
+        failure_message: "Message spool must be enabled for guaranteed messaging."
+
+  - section: "6.1.B.iii"
+    description: "Redundancy Checks"
+    info_message: "Active/Standby redundancy (Non-Guaranteed messaging, Standby broker)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Standby"
+        failure_message: "Redundancy not configured for Active/Standby."
+      - type: contains
+        expected: "Active-Standby Role      : Backup"
+        failure_message: "Active/Standby role not Backup as expected."
+      - type: not_contains_regex
+        pattern: "Message Spool Status\\s+Enabled"
+        failure_message: "Message spool should not be enabled for non-guaranteed messaging."
+
+  - section: "6.1.B.iv"
+    description: "Redundancy Checks"
+    info_message: "Active/Standby redundancy (Guaranteed messaging, Standby broker)"
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: contains
+        expected: "Redundancy Mode          : Active/Standby"
+        failure_message: "Redundancy not configured for Active/Standby."
+      - type: contains
+        expected: "Active-Standby Role      : Backup"
+        failure_message: "Active/Standby role not Backup as expected."
+      - type: contains
+        expected: "Message Spool Status     : Enabled"
+        failure_message: "Message spool must be enabled for guaranteed messaging."
+
+  - section: "6.1.C"
+    description: "Redundancy Checks"
+    info_message: "Redundancy is Shutdown with no mate configured, this is a standalone appliance."
+    command: "show redundancy"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: redundancy_standalone_check
+
+  - section: "6.2"
+    description: "Config-Sync operational status"
+    command: "show config-sync"
+    source: "cli-diagnostics.txt"
+    checks:
+      - type: config_sync_status_check

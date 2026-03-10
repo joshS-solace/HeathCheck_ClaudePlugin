@@ -1,0 +1,174 @@
+troubleshooting:
+
+  # 1.1 and 1.2: not applicable (upgrade recommended, no log greps needed)
+
+  "2.1":
+    - description: "Core dump check"
+      sources:
+        - "debug.log"
+        - "system.log"
+      pattern: "Error Child process died"
+
+    - description: "Cause 1 - Operator or Host-Initiated Shutdown"
+      source: "debug.log"
+      pattern: "System shutdown initiated by"
+
+    - description: "Cause 2 - External Termination Signal"
+      source: "debug.log"
+      pattern: "Received Signal 17"
+
+    - description: "Cause 3 - Mate takeover not confirmed"
+      source: "debug.log"
+      pattern: "Did not receive confirmation that the mate took over activity"
+
+    - description: "Cause 4 - Unresponsive Message Spool Disk"
+      sources:
+        - "debug.log"
+        - "system.log"
+      pattern: "(?i)message spool disk is unresponsive"
+
+    - description: "Cause 5 - Software Bug (debug.log)"
+      source: "debug.log"
+      patterns:
+        - "Error Detected"
+        - "Terminated"
+      correlate:
+        source: "event.log"
+        window_minutes: 10
+
+    - description: "Cause 6 - Processor IERR"
+      source: "debug.log"
+      pattern: "Processor: IERR"
+
+  # 2.2 and 2.3: not applicable
+
+  "3.1":
+    - description: "Cause 1 - Zippy Power Housing"
+      source: "debug.log"
+      pattern: "IPMI SEL"
+
+  "3.2":
+    - description: "NAB system events"
+      source: "system.log"
+      pattern: "SYSTEM_NAB_"
+
+    - description: "NAB halt detected"
+      source: "debug.log"
+      pattern: "FATAL    NAB halt detected - shutting down"
+
+  # 3.3: skipped - no relevant information
+
+  "3.4":
+    - description: "ADB system events"
+      source: "system.log"
+      pattern: "SYSTEM_ADB_"
+
+    - description: "Cause 1 - Mate Link Port Down"
+      source: "event.log"
+      pattern: "ALERT: Mate Link Port Down"
+
+    - description: "Cause 2 - ADB Failed to Restore Image from Flash"
+      source: "system.log"
+      pattern: "SYSTEM_AD_RESTORE_FAILED"
+
+    - description: "Cause 3 - Soft Error in Hardware Component"
+      source: "system.log"
+      pattern: "SYSTEM_CHASSIS_HARDWARE_SOFT_ERROR"
+
+    - description: "Cause 4 - Critical Hardware Problem on ADB"
+      source: "system.log"
+      pattern: "SYSTEM_ADB_CRITICAL_HARDWARE_FAILURE"
+
+    - description: "Cause 4 - ADB Noncritical Hardware Notification"
+      source: "system.log"
+      pattern: "SYSTEM_ADB_NONCRITICAL_HARDWARE_NOTIFICATION"
+
+  # 4.A.i, 4.A.ii, 4.2: skipped
+
+  "5.1":
+    - description: "Cause 1 - Message Spool Possibly Corrupt"
+      source: "debug.log"
+      patterns:
+        - "Begin move-to-disk errored state"
+        - "Failed to move messages to disk"
+
+    - description: "Cause 2 - Spool Files Threshold Exceeded"
+      source: "system.log"
+      patterns:
+        - "SYSTEM_AD_SPOOL_FILES_EXCEEDED"
+        - "SYSTEM_AD_SPOOL_FILES_HIGH"
+
+    - description: "Cause 3 - CVRID Mismatch"
+      source: "debug.log"
+      pattern: "ADB indicates CVRID Mismatch"
+
+    - description: "Cause 4 - Maximum Spool Usage Exceeded"
+      source: "debug.log"
+      pattern: "SYSTEM_AD_MSG_SPOOL_QUOTA_EXCEED"
+
+  # 6.1.A/6.1.B/6.1.C all fail as a group - keyed by group key "6.1"
+  "6.1":
+    - description: "Cause 1 - VR in Standby Mode"
+      source: "system.log"
+      pattern: "SYSTEM_HA_VR_STATE_STANDBY"
+
+    - description: "Cause 2 - Slow Disk (adCmnSoftMateLink)"
+      source: "debug.log"
+      pattern: 'adCmnSoftMateLink\.cpp.*closeSocketErrno: unknown reasons'
+
+    - description: "Cause 3 - ADB Hello Protocol oscillation (RT-59317)"
+      source: "system.log"
+      patterns:
+        - "SYSTEM_LINK_ADB_HELLO_PROTOCOL_UP"
+        - "SYSTEM_LINK_ADB_HELLO_PROTOCOL_DOWN"
+      min_matches_per_pattern: 3
+
+    - description: "Cause 4 - CVRID Mismatch"
+      source: "debug.log"
+      pattern: "CVRID Mismatch"
+
+    - description: "Cause 5 - Clock Skew Between Mates"
+      source: "system.log"
+      pattern: "SYSTEM_HA_TIME_SKEW"
+
+    - description: "Cause 6 - Node Name Mismatch"
+      source: "debug.log"
+      pattern: "Could not determine self node configuration"
+
+  "6.2":
+    # Always output these when config-sync fails
+    - description: "Config-sync down events (system.log)"
+      source: "system.log"
+      pattern: "SYSTEM_CFGSYNC_DOWN"
+
+    - description: "Config-sync state changes (debug.log)"
+      source: "debug.log"
+      pattern: "CFGSYNC_STATE_CHANGE"
+
+    - description: "Config-sync activity (command.log)"
+      source: "command.log"
+      pattern: "CfgSync"
+
+    # Cause-specific greps
+    - description: "Cause 1 - Table Summary Timeout (system.log)"
+      source: "system.log"
+      patterns:
+        - "SYSTEM_AD_MSG_COUNT_UTILIZATION_EXCEED"
+        - "SYSTEM_CFGSYNC_DOWN"
+        - "VPN_AD_MSG_SPOOL_QUOTA_EXCEED"
+
+    - description: "Cause 1 - Send Rejected (debug.log)"
+      source: "debug.log"
+      pattern: "VPN_CFGSYNC_STATE_CHANGE.*reason 'Send Rejected'"
+
+    - description: "Cause 2 - Disk Full"
+      source: "debug.log"
+      pattern: 'ERROR fclose\(\) failed: Errno\(28\) No space left on device'
+
+    - description: "Cause 3 - Connection Buffer Too Big"
+      source: "debug.log"
+      pattern: "connect failed from.*Service Unavailable: Service Unavailable"
+
+    - description: "Cause 4 - TLS Connection Rejected"
+      source: "event.log"
+      pattern: "SYSTEM_SSL_CONNECTION_REJECTED"

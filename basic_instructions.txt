@@ -1,0 +1,17 @@
+I am designing an application that will perform a Health Check on a Solace appliance.
+A health check is just a document that explains a procedure for verifying different aspects of the appliance, for example it will list the output of a healthy "show hardware POST", and if the appliance doesn't match that section will need to be flagged and further looked into.
+
+Here is a flow of steps for you to loosely follow in the program
+1. Receive as input a "gather-diagnostics..." folder
+- Inside this folder should be a file called "cli-diagnostics.txt".
+2. Capture the cli-diagnostics.txt file to use for later analysis, if it does not exist throw an error, and say why.
+3. The other files we need are the .log files, located inside the gather-diagnostics folder-name/usr/sw/jail/logs where you can see "command.log", "debug.log", "event.log" and typically there will be e.g event.log.1, event.log.2, etc.
+4. Capture those .log files to use for later analysis, if some are missing its ok, just output a warning saying e.g command.log is missing, but if event.log.x is missing it doesn't matter.
+5. Capture the healthcheck_rules.yaml file located in the current rule folder, it shows the health-check section and rules.
+6. Perform the health-check on the appliance, here is how you will do this:
+- For each section of the health-check (e.g 1.1, 1.2, etc) follow the steps for that section, if the output does not match the output from the cli-diagnostics.txt or the x.log (whichever the health check specifies, default is cli-diagnostics.txt) output "Section x failed because of y and z".
+	- If the health-check asked you to perform any grep command, output those to the user, with a time and source.
+	- If the section has a URL asking to check something, fetch that as well and use it.
+	- Stop when reached the end of the health-check, e.g 6.2 is finished.
+- For example: If you are doing 3.1, the health check's output for show hardware detail has Operational power supplies as 2, Power Module 1 as OK (module 1 is up), and same for Power Module 2. If you went to the cli-diagnostics.txt inside the gather-diagnostics folder and checked the show hardware and saw that Power Module 2 is Not Operational, you would flag this section and output "Section 3.2 failed, Power Module 2: Not Operational, this does not match the health check's provided output of Power Module 2: OK"
+7. Check if there was any failed steps, if there was not output that this is healthy, otherwise you can exit as the failed sections and why would have been outputted as they were encountered.
