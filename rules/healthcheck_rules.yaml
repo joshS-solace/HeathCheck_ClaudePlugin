@@ -59,7 +59,7 @@ rules:
   # Part 2 — System Stability
   - section: "2.1"
     description: "Uptime and last restart reason checked."
-    command: "show system"
+    command: "show system detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
@@ -91,7 +91,7 @@ rules:
 
   - section: "2.3"
     description: "Power-On Self Test (POST) passed."
-    command: "show system post"
+    command: "show hardware post"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
@@ -198,7 +198,7 @@ rules:
   - section: "6.1.A.i"
     description: "Redundancy Checks"
     info_message: "Active/Active redundancy (Non-Guaranteed messaging)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
@@ -211,7 +211,7 @@ rules:
   - section: "6.1.A.ii"
     description: "Redundancy Checks"
     info_message: "Active/Active redundancy (Guaranteed messaging — primary appliance)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
@@ -227,7 +227,7 @@ rules:
   - section: "6.1.A.iii"
     description: "Redundancy Checks"
     info_message: "Active/Active redundancy (Guaranteed messaging — secondary appliance)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
@@ -242,18 +242,21 @@ rules:
 
 
   # 6.1.B — Active/Standby
+  # Role detection: older SolOS sets "Active-Standby Role: Primary/Backup";
+  # newer SolOS (e.g. 10.8) always shows "Active-Standby Role: None" and
+  # the role is instead expressed in the VR activity table columns.
   - section: "6.1.B.i"
     description: "Redundancy Checks"
     info_message: "Active/Standby redundancy (Non-Guaranteed messaging)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
         expected: "Redundancy Mode          : Active/Standby"
         failure_message: "Redundancy not configured for Active/Standby."
-      - type: contains
-        expected: "Active-Standby Role      : Primary"
-        failure_message: "Active/Standby role not Primary as expected."
+      - type: regex
+        pattern: "Active-Standby Role\\s+:\\s+Primary|Activity Status\\s+Local Active"
+        failure_message: "Appliance is not the Active/Standby Primary."
       - type: not_contains_regex
         pattern: "Message Spool Status\\s+Enabled"
         failure_message: "Message spool should not be enabled for non-guaranteed messaging."
@@ -261,31 +264,31 @@ rules:
   - section: "6.1.B.ii"
     description: "Redundancy Checks"
     info_message: "Active/Standby redundancy (Guaranteed messaging)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
         expected: "Redundancy Mode          : Active/Standby"
         failure_message: "Redundancy not configured for Active/Standby."
-      - type: contains
-        expected: "Active-Standby Role      : Primary"
-        failure_message: "Active/Standby role not Primary as expected."
-      - type: contains
-        expected: "Message Spool Status     : Enabled"
-        failure_message: "Message spool must be enabled for guaranteed messaging."
+      - type: regex
+        pattern: "Active-Standby Role\\s+:\\s+Primary|Activity Status\\s+Local Active"
+        failure_message: "Appliance is not the Active/Standby Primary."
+      - type: regex
+        pattern: "Message Spool Status\\s+AD-Active"
+        failure_message: "Message spool must be AD-Active for guaranteed messaging."
 
   - section: "6.1.B.iii"
     description: "Redundancy Checks"
     info_message: "Active/Standby redundancy (Non-Guaranteed messaging, Standby broker)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
         expected: "Redundancy Mode          : Active/Standby"
         failure_message: "Redundancy not configured for Active/Standby."
-      - type: contains
-        expected: "Active-Standby Role      : Backup"
-        failure_message: "Active/Standby role not Backup as expected."
+      - type: regex
+        pattern: "Active-Standby Role\\s+:\\s+Backup|Activity Status\\s+Shutdown\\s+Mate Active"
+        failure_message: "Appliance is not the Active/Standby Backup."
       - type: not_contains_regex
         pattern: "Message Spool Status\\s+Enabled"
         failure_message: "Message spool should not be enabled for non-guaranteed messaging."
@@ -293,23 +296,23 @@ rules:
   - section: "6.1.B.iv"
     description: "Redundancy Checks"
     info_message: "Active/Standby redundancy (Guaranteed messaging, Standby broker)"
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: contains
         expected: "Redundancy Mode          : Active/Standby"
         failure_message: "Redundancy not configured for Active/Standby."
-      - type: contains
-        expected: "Active-Standby Role      : Backup"
-        failure_message: "Active/Standby role not Backup as expected."
-      - type: contains
-        expected: "Message Spool Status     : Enabled"
-        failure_message: "Message spool must be enabled for guaranteed messaging."
+      - type: regex
+        pattern: "Active-Standby Role\\s+:\\s+Backup|Activity Status\\s+Shutdown\\s+Mate Active"
+        failure_message: "Appliance is not the Active/Standby Backup."
+      - type: regex
+        pattern: "Message Spool Status\\s+AD-Standby"
+        failure_message: "Message spool must be AD-Standby for guaranteed messaging (standby broker)."
 
   - section: "6.1.C"
     description: "Redundancy Checks"
     info_message: "Redundancy is Shutdown with no mate configured, this is a standalone appliance."
-    command: "show redundancy"
+    command: "show redundancy detail"
     source: "cli-diagnostics.txt"
     checks:
       - type: redundancy_standalone_check

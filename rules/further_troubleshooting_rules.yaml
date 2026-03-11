@@ -116,7 +116,7 @@ troubleshooting:
       source: "debug.log"
       pattern: 'adCmnSoftMateLink\.cpp.*closeSocketErrno: unknown reasons'
 
-    - description: "Cause 3 - ADB Hello Protocol oscillation (RT-59317)"
+    - description: "Cause 3 - ADB Hello Protocol oscillation"
       source: "system.log"
       patterns:
         - "SYSTEM_LINK_ADB_HELLO_PROTOCOL_UP"

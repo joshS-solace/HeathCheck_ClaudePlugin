@@ -1,0 +1,8 @@
+{
+  "name": "support-health-check",
+  "description": "Solace appliance health check workflow — initialize gather-diagnostics and analyze appliances by router name.",
+  "version": "1.0.0",
+  "author": {
+    "name": "JoshS-solace"
+  }
+}

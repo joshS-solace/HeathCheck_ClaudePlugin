@@ -1,30 +1,66 @@
+# Solace Appliance Health Check
+
+## Setup
+
+```bash
 python -m pip install -r requirements.txt
-python3 main.py <gd-file>
+```
 
-# AWS Credentials (required for handle_gather_diagnostics.py decryption)
-# Option 1 — run "aws configure" if AWS CLI is installed (sets ~/.aws/credentials persistently)
-  aws configure
-  # Enter: Access Key ID, Secret Access Key, region (us-east-2), output format (json)
+## Running
 
-# Option 2 — set manually in PowerShell for current session only
-  $env:AWS_ACCESS_KEY_ID     = "your-access-key-id"
-  $env:AWS_SECRET_ACCESS_KEY = "your-secret-access-key"
-  $env:AWS_DEFAULT_REGION    = "us-east-2"
+```bash
+# Full orchestrated workflow (file picker if no args)
+python run_health_check_application.py [gd-folder ...]
 
-# Option 3 — set persistently via PowerShell (survives restarts)
-  [System.Environment]::SetEnvironmentVariable("AWS_ACCESS_KEY_ID",     "your-access-key-id",     "User")
-  [System.Environment]::SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", "your-secret-access-key", "User")
-  [System.Environment]::SetEnvironmentVariable("AWS_DEFAULT_REGION",    "us-east-2",              "User")
+# Or use the plugin commands inside Claude Code
+/health-check:initialize <gd1> <gd2>
+/health-check:analyze <router-name>
+```
 
-# OpenAI API Key (required for llm CLI used in health_check_fail_troubleshoot.py)
-  llm keys set openai
-  # Enter your OpenAI API key when prompted (get one from platform.openai.com)
+---
 
-# Windows CMD - set in your environment
-  setx ATLASSIAN_TOKEN "your-new-token"
-  setx ATLASSIAN_EMAIL "josh.soutar@solace.com"
+## Environment Variables
 
-# Windows Powershell 
- # Persistent (survives restarts) - run in PowerShell as normal user
-  [System.Environment]::SetEnvironmentVariable("ATLASSIAN_TOKEN", "ATATT3xFfGF0vjf7rdgycqhL8IkUpZ3vrAmeGkK9DId1AIi_lViHEWjwUN8_8gnYKCFH_gPrOggrlXJzFhzuoYRiCf2gDNHtJ-cz8jwtpkxuIif21B7iQiqwcmtSg0c5-ym78XGWOP7QLRWNKQ0o3EkXdDtxcflgxjJCtqx-iCanW9TXgYn0tv8=703A40F5", "User")
-  [System.Environment]::SetEnvironmentVariable("ATLASSIAN_EMAIL", "josh.soutar@solace.com", "User")
+### Anthropic API Key (required for LLM features)
+
+```bash
+llm keys set anthropic
+# Enter your Anthropic API key when prompted
+```
+
+### Atlassian Credentials (used by raw API fallback)
+
+**Windows CMD**
+```cmd
+setx ATLASSIAN_TOKEN "your-atlassian-api-token"
+setx ATLASSIAN_EMAIL "your-email@example.com"
+```
+
+**PowerShell (persistent)**
+```powershell
+[System.Environment]::SetEnvironmentVariable("ATLASSIAN_TOKEN", "your-atlassian-api-token", "User")
+[System.Environment]::SetEnvironmentVariable("ATLASSIAN_EMAIL", "your-email@example.com",   "User")
+```
+
+Generate an Atlassian API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+---
+
+## Atlassian MCP (Confluence Search)
+
+The project includes a `.mcp.json` that configures the [Atlassian MCP server](https://mcp.atlassian.com) for Claude Code. This enables Claude to search Confluence directly using natural language rather than raw API calls.
+
+### First-time setup
+
+1. Open Claude Code in this project directory
+2. Run `/mcp` inside Claude Code
+3. Select **atlassian** and choose **Authenticate**
+4. Complete the OAuth login in your browser — you'll be redirected back automatically
+
+### Verify it's connected
+
+```bash
+claude mcp list
+```
+
+Once authenticated, Claude can search Confluence natively during health check analysis (e.g. looking up KBAs for FAIL results).

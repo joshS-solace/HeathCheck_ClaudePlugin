@@ -100,8 +100,8 @@ def extract(tgz_path: Path) -> Path:
         print(f"[ERROR] Extraction failed: {e}")
         sys.exit(1)
 
-    # Return the extracted item (folder or file) — strip last .tgz extension
-    extracted = dest / tgz_path.name[:-4]
+    # Return the extracted item (folder or file) — strip .tgz extension
+    extracted = strip_extensions(tgz_path)
     return extracted if extracted.exists() else dest
 
 

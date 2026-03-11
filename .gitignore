@@ -7,6 +7,7 @@ data/router_context.json
 data/appliance_fails.json
 data/HA_pair_validation.json
 data/replication_pair_validation.json
+data/context_output.txt
 
 # Archive files
 *.tgz
@@ -20,5 +21,7 @@ __pycache__/
 .venv/
 venv/
 
-# Claude
-.claude/
+# Claude — exclude session/state data but track plugins
+.claude/projects/
+.claude/todos/
+.claude/settings.local.json

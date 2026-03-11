@@ -12,12 +12,29 @@ Example:
 import sys
 import os
 import re
+import io
+import contextlib
 import datetime
 import urllib.request
 from pathlib import Path
 
 import json
 import yaml
+
+
+class _Tee:
+    """Write to both the original stdout and a file simultaneously."""
+    def __init__(self, filepath: Path):
+        self._file = open(filepath, "w", encoding="utf-8")
+        self._stdout = sys.stdout
+    def write(self, data):
+        self._file.write(data)
+        self._stdout.write(data)
+    def flush(self):
+        self._file.flush()
+        self._stdout.flush()
+    def close(self):
+        self._file.close()
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +112,7 @@ def load_logs(folder: Path) -> dict:
 # Command-output extraction
 # ---------------------------------------------------------------------------
 
-def extract_command_output(diagnostics: str, command: str) -> str:
+def extract_command_output(diagnostics: str, command: str) -> str | None:
     """
     Extract the CLI output for a specific command from cli-diagnostics.txt.
 
@@ -112,32 +129,58 @@ def extract_command_output(diagnostics: str, command: str) -> str:
         ==========================================
         ...output...
 
-    Returns the matched section, or the full file if no section structure
-    is detected (safe fallback for single-command files).
+    Returns the matched section text, or None if the command section is not
+    found.  Callers must handle None — the old full-file fallback is removed
+    so that a missing section produces an explicit failure rather than silently
+    running checks against unrelated content.
     """
     escaped = re.escape(command)
     sep = r"[-=#]{5,}"
 
-    # Pattern A: separator / optional-"# " / command / separator / output
+    # Pattern A: Solace GD format — "# CLI command: COMMAND" with optional
+    # additional "# Header: value" lines, all between hash-only separator lines.
+    #   #################################################################
+    #   # CLI command: show version
+    #   # Host:        router1
+    #   #################################################################
+    #   <output>
+    # Uses #{5,} (not the generic sep) so table border lines (------) inside
+    # the content do not prematurely end the capture.
+    hash_sep = r"#{5,}"
     pat_a = (
-        rf"(?:{sep})\s*\n"
-        rf"\s*#?\s*{escaped}\s*\n"
-        rf"\s*{sep}\s*\n"
+        rf"(?:{hash_sep})\s*\n"
+        rf"\s*#\s*CLI command:\s*{escaped}\s*\n"
+        rf"(?:\s*#[^\n]*\n)*"          # zero or more extra "# Key: val" header lines
+        rf"\s*{hash_sep}\s*\n"
         rf"(.*?)"
-        rf"(?=\n{sep}|\Z)"
+        rf"(?=\n\s*{hash_sep}|\Z)"
     )
     m = re.search(pat_a, diagnostics, re.DOTALL | re.IGNORECASE)
     if m:
         return m.group(1).strip()
 
-    # Pattern B: command embedded inside separator line "### show version ###"
-    pat_b = rf"(?:{sep})\s*{escaped}\s*(?:{sep})(.*?)(?={sep}|\Z)"
+    # Pattern B: separator / optional-"# " / bare command / separator / output
+    #   ########################################
+    #   # show version
+    #   ########################################
+    pat_b = (
+        rf"(?:{sep})\s*\n"
+        rf"\s*#?\s*{escaped}\s*\n"
+        rf"\s*{sep}\s*\n"
+        rf"(.*?)"
+        rf"(?=\n\s*{sep}|\Z)"
+    )
     m = re.search(pat_b, diagnostics, re.DOTALL | re.IGNORECASE)
     if m:
         return m.group(1).strip()
 
-    # Fallback: return full diagnostics text
-    return diagnostics
+    # Pattern C: command embedded inside separator line "### show version ###"
+    pat_c = rf"(?:{sep})\s*{escaped}\s*(?:{sep})(.*?)(?={sep}|\Z)"
+    m = re.search(pat_c, diagnostics, re.DOTALL | re.IGNORECASE)
+    if m:
+        return m.group(1).strip()
+
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +250,108 @@ def find_latest_log_date(logs: dict) -> tuple:
     if latest:
         return latest, False
     return datetime.date.today(), True
+
+
+# ---------------------------------------------------------------------------
+# Troubleshoot report (formerly troubleshoot_failures.py)
+# ---------------------------------------------------------------------------
+
+def _clean_message(msg: str) -> str:
+    """Strip log source suffix like '(source: event.log.1)'."""
+    return re.sub(r"\s*\(source:[^)]+\)", "", msg).strip()
+
+
+def _print_troubleshoot_report(data: dict):
+    fails = [r for r in data["results"] if r["status"] == "FAIL"]
+    if not fails:
+        return
+
+    print("=== Health Check Troubleshoot Report ===\n")
+
+    for result in fails:
+        section = result["section"]
+        description = result["description"]
+        print(f"[{section}] FAIL - {description}")
+
+        if section in ("1.1", "1.2"):
+            for failure in result["failures"]:
+                print(f"  -> Upgrade recommended: {_clean_message(failure['message'])}")
+            print()
+            continue
+
+        for ctx in result.get("troubleshooting_context", []):
+            matches = ctx.get("matches", [])
+            correlated = ctx.get("correlated", [])
+            if not matches and not correlated:
+                continue
+            print(f"  [{ctx['description']}]")
+            for m in matches:
+                print(f"    [GREP MATCH] Source: {m['source']} | Time: {m['timestamp']} {m.get('message', m['line'])}")
+            if correlated:
+                print("    [CORRELATED EVENTS]")
+                for m in correlated:
+                    print(f"    [GREP MATCH] Source: {m['source']} | Time: {m['timestamp']} {m.get('message', m['line'])}")
+
+        seen = set()
+        for failure in result["failures"]:
+            msg = _clean_message(failure["message"])
+            if msg in seen:
+                continue
+            seen.add(msg)
+            print(f"  [FAIL] {msg}")
+            for m in failure.get("matches", []):
+                print(f"    [GREP MATCH] Source: {m['source']} | Time: {m['timestamp']} {m.get('message', m['line'])}")
+
+        print()
+
+
+def _build_fails_json(data: dict) -> list:
+    fails = [r for r in data["results"] if r["status"] == "FAIL"]
+    output = []
+    for result in fails:
+        section = result["section"]
+        entry = {"section": section, "description": result["description"], "failures": []}
+
+        if section in ("1.1", "1.2"):
+            for failure in result["failures"]:
+                entry["failures"].append({"message": _clean_message(failure["message"])})
+            output.append(entry)
+            continue
+
+        for ctx in result.get("troubleshooting_context", []):
+            matches = ctx.get("matches", [])
+            correlated = ctx.get("correlated", [])
+            if not matches and not correlated:
+                continue
+            ctx_entry = {"description": ctx["description"], "matches": [], "correlated": []}
+            for m in matches:
+                ctx_entry["matches"].append({
+                    "source": m["source"], "timestamp": m["timestamp"],
+                    "message": m.get("message", m["line"]),
+                })
+            for m in correlated:
+                ctx_entry["correlated"].append({
+                    "source": m["source"], "timestamp": m["timestamp"],
+                    "message": m.get("message", m["line"]),
+                })
+            entry.setdefault("troubleshooting_context", []).append(ctx_entry)
+
+        seen = set()
+        for failure in result["failures"]:
+            msg = _clean_message(failure["message"])
+            if msg in seen:
+                continue
+            seen.add(msg)
+            fail_entry = {"message": msg, "matches": []}
+            for m in failure.get("matches", []):
+                fail_entry["matches"].append({
+                    "source": m["source"], "timestamp": m["timestamp"],
+                    "message": m.get("message", m["line"]),
+                })
+            entry["failures"].append(fail_entry)
+
+        output.append(entry)
+    return output
 
 
 # ---------------------------------------------------------------------------
@@ -670,7 +815,13 @@ def run_section(rule: dict, diagnostics: str, logs: dict, reference_date: dateti
     for source in expanded_sources:
         # Resolve content for this source
         if source == "cli-diagnostics.txt":
-            content = extract_command_output(diagnostics, command) if command else diagnostics
+            if command:
+                content = extract_command_output(diagnostics, command)
+                if content is None:
+                    all_failures.append({"message": f"Section '{command}' not found in cli-diagnostics.txt.", "matches": []})
+                    continue
+            else:
+                content = diagnostics
         elif source in logs:
             content = logs[source]
         else:
@@ -717,7 +868,7 @@ def section_group_key(section_id: str) -> str:
 # Entry point
 # ---------------------------------------------------------------------------
 
-def run(folder: Path) -> bool:
+def run(folder: Path, router_name: str = None) -> bool:
     """Run health checks against a gather-diagnostics folder. Returns True if any checks failed."""
     folder = resolve_folder(folder)
 
@@ -765,19 +916,29 @@ def run(folder: Path) -> bool:
             # ── Standalone section ─────────────────────────────────────────
             rule = task_rules[0]
             section = rule["section"]
-            print(f"[Section {section}] {rule.get('description', '')}")
 
-            passed, failures = run_section(rule, diagnostics, logs, reference_date, date_is_fallback)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                passed, failures = run_section(rule, diagnostics, logs, reference_date, date_is_fallback)
+            captured = buf.getvalue()
 
             if passed:
-                if rule.get("info_message"):
-                    print(f"  [INFO] {rule['info_message']}")
-                print("  PASS")
+                info_msg = rule.get("info_message")
+                if captured.strip() or info_msg:
+                    print(f"[Section {section}] {rule.get('description', '')}")
+                    if captured.strip():
+                        print(captured, end="")
+                    if info_msg:
+                        print(f"  [INFO] {info_msg}")
+                    print()
             else:
                 any_failed = True
+                print(f"[Section {section}] {rule.get('description', '')}")
+                if captured.strip():
+                    print(captured, end="")
                 for failure in failures:
                     print(f"  [FAIL] {failure['message']}")
-            print()
+                print()
 
             result = {
                 "section": section,
@@ -803,26 +964,32 @@ def run(folder: Path) -> bool:
                 active_rules = [
                     r for r in task_rules
                     if r.get("selector") and r["selector"] in (
-                        extract_command_output(diagnostics, r["command"]) if r.get("command") else diagnostics
+                        extract_command_output(diagnostics, r["command"]) or "" if r.get("command") else diagnostics
                     )
                 ] or task_rules
             else:
                 active_rules = task_rules
 
-            variant_results = []  # (rule, passed, failures)
+            variant_results = []  # (rule, passed, failures, captured)
 
             for rule in active_rules:
-                passed, failures = run_section(rule, diagnostics, logs, reference_date, date_is_fallback)
-                variant_results.append((rule, passed, failures))
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    passed, failures = run_section(rule, diagnostics, logs, reference_date, date_is_fallback)
+                variant_results.append((rule, passed, failures, buf.getvalue()))
 
-            passing = [(r, f) for r, p, f in variant_results if p]
+            passing = [(r, f, cap) for r, p, f, cap in variant_results if p]
 
             if passing:
-                rule, _ = passing[0]
-                print(f"[Section {rule['section']}] {rule.get('description', '')}")
-                if rule.get("info_message"):
-                    print(f"  [INFO] {rule['info_message']}")
-                print("  PASS")
+                rule, _, captured = passing[0]
+                info_msg = rule.get("info_message")
+                if captured.strip() or info_msg:
+                    print(f"[Section {rule['section']}] {rule.get('description', '')}")
+                    if captured.strip():
+                        print(captured, end="")
+                    if info_msg:
+                        print(f"  [INFO] {info_msg}")
+                    print()
                 json_results.append({
                     "section": rule["section"],
                     "description": rule.get("description", ""),
@@ -835,8 +1002,10 @@ def run(folder: Path) -> bool:
                 print(f"[Section {group_key}] {group_desc}")
                 print("  No applicable variant passed.")
                 all_failures = []
-                for rule, _, failures in variant_results:
+                for rule, _, failures, captured in variant_results:
                     print(f"  Variant {rule['section']} {rule.get('description', '')}:")
+                    if captured.strip():
+                        print(captured, end="")
                     for failure in failures:
                         print(f"    [FAIL] {failure['message']}")
                     all_failures.extend([
@@ -867,30 +1036,55 @@ def run(folder: Path) -> bool:
         "overall": "FAIL" if any_failed else "PASS",
         "results": json_results,
     }
-    output_path = Path(__file__).parent / "data" / "health_check_results.json"
+    suffix = f"_{router_name}" if router_name else ""
+    output_path = Path(__file__).parent / "data" / f"health_check_results{suffix}.json"
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
     print(f"Results written to {output_path}")
+
+    if any_failed:
+        print()
+        _print_troubleshoot_report(output)
+        fails_json = _build_fails_json(output)
+        fails_path = Path(__file__).parent / "data" / "appliance_fails.json"
+        with open(fails_path, "w") as f:
+            json.dump(fails_json, f, indent=2)
+        print(f"[INFO] Fails written to {fails_path}")
 
     return any_failed
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage:   python health_check.py <gather-diagnostics-folder>")
+    args = sys.argv[1:]
+    router_name = None
+    if "--router-name" in args:
+        idx = args.index("--router-name")
+        router_name = args[idx + 1]
+        args = args[:idx] + args[idx + 2:]
+
+    if not args:
+        print("Usage:   python health_check.py <gather-diagnostics-folder> [--router-name <name>]")
         print("Example: python health_check.py gather-diagnostics-20240101")
         sys.exit(1)
 
-    folder = Path(sys.argv[1])
+    folder = Path(args[0])
     if not folder.exists() or not folder.is_dir():
         print(f"ERROR: Folder not found: {folder}")
         sys.exit(1)
 
+    data_dir = Path(__file__).parent / "data"
+    suffix = f"_{router_name}" if router_name else ""
+    tee = _Tee(data_dir / f"health_check_output{suffix}.txt")
+    sys.stdout = tee
+
     print("Solace Appliance Health Check")
     print("=" * 50)
 
-    had_failures = run(folder)
-    sys.exit(1 if had_failures else 0)
+    run(folder, router_name=router_name)
+
+    sys.stdout = tee._stdout
+    tee.close()
+    sys.exit(0)
 
 
 if __name__ == "__main__":

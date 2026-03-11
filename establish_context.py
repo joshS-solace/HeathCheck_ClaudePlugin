@@ -17,6 +17,21 @@ import sys
 from pathlib import Path
 
 
+class _Tee:
+    """Write to both the original stdout and a file simultaneously."""
+    def __init__(self, filepath: Path):
+        self._file = open(filepath, "w", encoding="utf-8")
+        self._stdout = sys.stdout
+    def write(self, data):
+        self._file.write(data)
+        self._stdout.write(data)
+    def flush(self):
+        self._file.flush()
+        self._stdout.flush()
+    def close(self):
+        self._file.close()
+
+
 # ---------------------------------------------------------------------------
 # Helpers (subset of main.py — no shared import to keep this standalone)
 # ---------------------------------------------------------------------------
@@ -198,9 +213,33 @@ def _broker_order(c):
     return (role_rank, act_rank)
 
 
-def _print_repl_group(group):
-    for ctx in sorted(group, key=_broker_order):
-        print(f"    {broker_site_label(ctx)} Broker: {ctx['router_name']}")
+def _draw_table(headers: list, row_groups: list) -> str:
+    """Render a box-drawing table. row_groups is a list of row-lists; groups are separated by a mid-divider."""
+    all_rows = [r for g in row_groups for r in g]
+    col_widths = [len(h) for h in headers]
+    for row in all_rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(str(cell)))
+
+    def fmt_row(cells, L='│', S='│', R='│'):
+        parts = [f" {str(c):<{col_widths[i]}} " for i, c in enumerate(cells)]
+        return L + S.join(parts) + R
+
+    def fmt_sep(L='├', M='┼', R='┤', F='─'):
+        return L + M.join(F * (w + 2) for w in col_widths) + R
+
+    lines = [
+        fmt_sep('┌', '┬', '┐'),
+        fmt_row(headers),
+        fmt_sep('├', '┼', '┤'),
+    ]
+    for gi, group in enumerate(row_groups):
+        for row in group:
+            lines.append(fmt_row(row))
+        if gi < len(row_groups) - 1:
+            lines.append(fmt_sep('├', '┼', '┤'))
+    lines.append(fmt_sep('└', '┴', '┘'))
+    return '\n'.join('  ' + line for line in lines)
 
 
 def _group_to_json(group):
@@ -289,41 +328,54 @@ def validate_replication_pairs(contexts: list):
     for og in other_groups:
         matched_pairs.append((og, None))
 
-    def _missing_mate_info(group):
+    REPL_HEADERS = ["Site", "HA Role", "Router", "Repl Site Status", "Info"]
+
+    def _repl_rows_for_group(group, site_label):
+        rows = []
+        for ctx in sorted(group, key=_broker_order):
+            rows.append([site_label, broker_site_label(ctx), ctx["router_name"], ctx.get("replication_site", ""), ""])
         if len(group) == 1:
             mate = group[0].get("mate_router", "")
             if mate:
                 role = group[0].get("redundancy_role", "")
                 missing_role = "Backup" if role == "Primary" else "Primary" if role == "Backup" else "Mate"
-                print(f"    [INFO] {missing_role} Broker {mate} missing GD")
+                rows.append([site_label, missing_role, mate, "-", "Missing GD"])
+        return rows
 
     pairs_json = []
     for n, (ag, bg) in enumerate(matched_pairs, 1):
         if ag is None and bg is None:
             continue
+
+        print(f"\n  Replication Pair {n}")
         pair = {"pair_number": n}
+        primary_rows = []
+        backup_rows = []
+
         if ag is not None:
-            print(f"\n  Primary Site {n}:")
-            _print_repl_group(ag)
-            _missing_mate_info(ag)
+            primary_rows = _repl_rows_for_group(ag, "Primary")
             pair["primary_site"] = _group_to_json(ag) + _missing_mate_json(ag)
-            if bg is None:
-                repl_mate = ag[0].get("replication_mate", "")
-                if repl_mate:
-                    print(f"\n  Backup Site {n}:")
-                    print(f"    [INFO] Broker {repl_mate} missing GD")
-                    pair["backup_site"] = [{"router_name": repl_mate, "missing_gd": True}]
+
         if bg is not None:
-            print(f"\n  Backup Site {n}:")
-            _print_repl_group(bg)
-            _missing_mate_info(bg)
+            backup_rows = _repl_rows_for_group(bg, "Backup")
             pair["backup_site"] = _group_to_json(bg) + _missing_mate_json(bg)
-            if ag is None:
-                repl_mate = bg[0].get("replication_mate", "")
-                if repl_mate:
-                    print(f"\n  Primary Site {n}:")
-                    print(f"    [INFO] Broker {repl_mate} missing GD")
-                    pair["primary_site"] = [{"router_name": repl_mate, "missing_gd": True}]
+
+        # Infer missing opposite site from replication_mate
+        if ag is not None and not backup_rows:
+            repl_mate = ag[0].get("replication_mate", "")
+            if repl_mate:
+                backup_rows = [["Backup", "-", repl_mate, "-", "Missing GD"]]
+                pair["backup_site"] = [{"router_name": repl_mate, "missing_gd": True}]
+        elif bg is not None and not primary_rows:
+            repl_mate = bg[0].get("replication_mate", "")
+            if repl_mate:
+                primary_rows = [["Primary", "-", repl_mate, "-", "Missing GD"]]
+                pair["primary_site"] = [{"router_name": repl_mate, "missing_gd": True}]
+
+        row_groups = [g for g in [primary_rows, backup_rows] if g]
+        if row_groups:
+            print(_draw_table(REPL_HEADERS, row_groups))
+
         pairs_json.append(pair)
     return pairs_json
 
@@ -359,21 +411,40 @@ def validate_ha_pairs(contexts: list):
     print("\nHA Pair Validation")
     print("-" * 50)
 
+    HA_HEADERS = ["HA Role", "Router", "Redundancy", "Replication", "Info"]
+
+    def _ha_row(ctx, missing_role=None):
+        if missing_role is not None:
+            return [missing_role, ctx["router_name"], "-", "-", "Missing GD"]
+        repl = "N/A"
+        if ctx.get("replication_active"):
+            site = ctx.get("replication_site", "")
+            repl = site if site else "Active"
+        return [
+            broker_site_label(ctx),
+            ctx["router_name"],
+            ctx.get("redundancy_mode", ""),
+            repl,
+            "",
+        ]
+
     pairs_json = []
     for n, (kind, ctx1, ctx2) in enumerate(pairs, 1):
-        print(f"\n  HA Pair {n}:")
+        print(f"\n  HA Pair {n}")
+        rows = []
         brokers = []
         if kind == "full":
             for ctx in sorted([ctx1, ctx2], key=_broker_order):
-                print(f"    {broker_site_label(ctx)} Broker: {ctx['router_name']}")
+                rows.append(_ha_row(ctx))
                 brokers.append({"router_name": ctx["router_name"], "role": broker_site_label(ctx), "missing_gd": False})
         else:
             cur_role = ctx1.get("redundancy_role", "")
-            print(f"    {broker_site_label(ctx1)} Broker: {ctx1['router_name']}")
+            rows.append(_ha_row(ctx1))
             brokers.append({"router_name": ctx1["router_name"], "role": broker_site_label(ctx1), "missing_gd": False})
             missing_role = "Backup" if cur_role == "Primary" else "Primary" if cur_role == "Backup" else "Mate"
-            print(f"    [INFO] {missing_role} Broker {ctx1['mate_router']} missing GD")
+            rows.append(_ha_row({"router_name": ctx1["mate_router"]}, missing_role=missing_role))
             brokers.append({"router_name": ctx1["mate_router"], "role": missing_role, "missing_gd": True})
+        print(_draw_table(HA_HEADERS, [rows]))
         pairs_json.append({"pair_number": n, "brokers": brokers})
     return pairs_json
 
@@ -383,6 +454,8 @@ def validate_ha_pairs(contexts: list):
 # ---------------------------------------------------------------------------
 
 def main():
+    sys.stdout.reconfigure(encoding='utf-8')
+
     if len(sys.argv) < 2:
         print("Usage:")
         print("  python establish_context.py <folder> [folder2] [folder3] ...")
@@ -393,6 +466,10 @@ def main():
         if not f.exists() or not f.is_dir():
             print(f"[ERROR] Folder not found: {f}")
             sys.exit(1)
+
+    data_dir = Path(__file__).parent / "data"
+    tee = _Tee(data_dir / "context_output.txt")
+    sys.stdout = tee
 
     # Build all contexts first so we can cross-reference mates
     contexts = []
@@ -428,8 +505,6 @@ def main():
     repl_pairs = validate_replication_pairs(contexts)
     ha_pairs = validate_ha_pairs(contexts)
 
-    data_dir = Path(__file__).parent / "data"
-
     output_path = data_dir / "router_context.json"
     with open(output_path, "w") as f:
         json.dump(contexts, f, indent=2)
@@ -448,6 +523,8 @@ def main():
         print(f"HA pairs written to {ha_path}")
 
     print()
+    sys.stdout = tee._stdout
+    tee.close()
 
 
 if __name__ == "__main__":

@@ -22,7 +22,6 @@ from pathlib import Path
 import establish_context as ec
 import handle_gather_diagnostics as hgd
 import health_check as hc
-import troubleshoot_failures as tf
 
 SCRIPT_DIR = Path(__file__).parent
 DATA_DIR = SCRIPT_DIR / "data"
@@ -197,7 +196,7 @@ def main():
         print("No appliances selected.")
         sys.exit(0)
 
-    # ── Steps 4 + 5: Health check then troubleshoot each appliance ───────────
+    # ── Step 4: Health check each appliance (troubleshoot report is included) ──
     for ctx in selected:
         folder = Path(ctx["full_path"])
         router_name = ctx["router_name"]
@@ -205,13 +204,7 @@ def main():
         print(f"\n{'=' * 50}")
         print(f"Health Check — {router_name}")
         print("=" * 50)
-        had_failures = hc.run(folder)
-
-        if had_failures:
-            print(f"\n{'=' * 50}")
-            print(f"Troubleshooting — {router_name}")
-            print("=" * 50)
-            tf.run_for_folder([folder])
+        hc.run(folder, router_name=router_name)
 
 
 if __name__ == "__main__":
