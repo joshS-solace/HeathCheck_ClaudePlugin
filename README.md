@@ -19,17 +19,6 @@ python run_health_check_application.py [gd-folder ...]
 
 ---
 
-## Environment Variables
-
-### Anthropic API Key (required for LLM features)
-
-```bash
-llm keys set anthropic
-# Enter your Anthropic API key when prompted
-```
-
----
-
 ## Atlassian MCP (Confluence Search)
 
 The project includes a `.mcp.json` that configures the [Atlassian MCP server](https://mcp.atlassian.com) for Claude Code. This enables Claude to search Confluence directly using natural language rather than raw API calls.
