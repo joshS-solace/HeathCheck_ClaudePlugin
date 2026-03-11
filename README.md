@@ -1,4 +1,4 @@
-# Solace Appliance Health Check
+# Solace Appliance Health Check Claude Plugin
 
 ## Setup
 
