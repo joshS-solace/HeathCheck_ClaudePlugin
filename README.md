@@ -9,10 +9,11 @@ python -m pip install -r requirements.txt
 ## Running
 
 ```bash
-# Full orchestrated workflow (file picker if no args)
+# Full orchestrated workflow (if not using plugin)
 python run_health_check_application.py [gd-folder ...]
 
 # Or use the plugin commands inside Claude Code
+claude --plugin-dir ./plugin # Inside the health-check directory
 /health-check:initialize <gd1> <gd2>
 /health-check:analyze <router-name>
 ```
