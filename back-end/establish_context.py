@@ -470,7 +470,7 @@ def validate_replication_pairs(contexts: list):
 
 
 def validate_ha_pairs(contexts: list):
-    if len(contexts) < 2:
+    if not contexts:
         return []
 
     router_names = {c["router_name"] for c in contexts}

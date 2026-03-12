@@ -446,12 +446,12 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
                 label = f" ({entry['release_type']})" if entry.get("release_type") else ""
                 if today > eot_s:
                     fail(
-                        f"SolOS {installed}{label} is out of support — "
+                        f"SolOS {installed}{label} is out of support -- "
                         f"technical support ended {eot_s.strftime('%B %d, %Y')}."
                     )
                 elif today > eof_s:
                     print(
-                        f"    [INFO] SolOS {installed}{label} — full support ended "
+                        f"    [INFO] SolOS {installed}{label} -- full support ended "
                         f"{eof_s.strftime('%B %d, %Y')}; technical support until "
                         f"{eot_s.strftime('%B %d, %Y')}."
                     )
@@ -477,7 +477,7 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
                 eos = datetime.date.fromisoformat(entry["end_of_support"])
                 if today > eos:
                     fail(
-                        f"Chassis {product} is out of support — "
+                        f"Chassis {product} is out of support -- "
                         f"end of support was {eos.strftime('%B %d, %Y')}."
                     )
                 else:
@@ -488,7 +488,7 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
 
     elif check_type == "hba_status_check":
         if not re.search(r"Link State:", content, re.IGNORECASE):
-            print("  [WARNING] No Host Bus Adapter (HBA) detected — HBA check skipped.")
+            print("  [WARNING] No Host Bus Adapter (HBA) detected -- HBA check skipped.")
         else:
             if not re.search(r"Operational State:\s+Online", content, re.IGNORECASE):
                 fail("HBA is present but not online.")
@@ -497,7 +497,7 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
 
     elif check_type == "adb_status_check":
         if "Assured Delivery Blade" not in content:
-            print("  [WARNING] No Assured Delivery Blade (ADB) detected — ADB check skipped.")
+            print("  [WARNING] No Assured Delivery Blade (ADB) detected -- ADB check skipped.")
         elif not re.search(r"Operational State:\s+Up", content, re.IGNORECASE):
             fail("ADB blade is present but not operational.")
 
@@ -524,9 +524,9 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
             if admin_status == "Enabled" and re.match(r"Up$", oper_status, re.IGNORECASE):
                 pass  # healthy
             elif admin_status == "Shutdown" and re.search(r"config-sync shutdown", oper_status, re.IGNORECASE):
-                print("  [WARNING] Config-sync Admin Status is Shutdown — config-sync is intentionally disabled.")
+                print("  [WARNING] Config-sync Admin Status is Shutdown -- config-sync is intentionally disabled.")
             else:
-                fail(f"Config-sync is not healthy — Admin Status: {admin_status}, Oper Status: {oper_status}.")
+                fail(f"Config-sync is not healthy -- Admin Status: {admin_status}, Oper Status: {oper_status}.")
 
     elif check_type == "dns_log_check":
         down_pat = re.compile(r"Name server (\S+) has gone DOWN", re.IGNORECASE)
@@ -574,13 +574,13 @@ def run_check(check: dict, content: str, section: str, source_label: str, refere
                         f"(expected AD-Disabled)."
                     )
                 else:
-                    print("  [WARNING] Message spool is Disabled and Operational Status is AD-Disabled — guaranteed messaging is not available.")
+                    print("  [WARNING] Message spool is Disabled and Operational Status is AD-Disabled -- guaranteed messaging is not available.")
             else:
                 fail(f"Unexpected message spool Config Status: '{config_status}'.")
 
     elif check_type == "alarm_check":
         if "show alarm" not in content.lower() and "alarm display" not in content.lower():
-            print("  [WARNING] 'show alarm' output not found in diagnostics — alarm check skipped.")
+            print("  [WARNING] 'show alarm' output not found in diagnostics -- alarm check skipped.")
         elif "No current alarms in the system." in content:
             pass  # clean
         else:
@@ -758,7 +758,7 @@ def run_section(rule: dict, diagnostics: str, logs: dict, reference_date: dateti
         )
         cutoff = reference_date - datetime.timedelta(days=max_age_days)
         if date_is_fallback:
-            print(f"  [WARNING] No log timestamps found — using today's date as reference. Window: {cutoff} to {reference_date}")
+            print(f"  [WARNING] No log timestamps found -- using today's date as reference. Window: {cutoff} to {reference_date}")
         else:
             print(f"  [INFO] Analyzing log data from {cutoff} to {reference_date} ({max_age_days}-day window)")
 
@@ -777,7 +777,7 @@ def run_section(rule: dict, diagnostics: str, logs: dict, reference_date: dateti
         elif source in logs:
             content = logs[source]
         else:
-            print(f"  [WARNING] Source '{source}' not available — skipping checks against {source}.")
+            print(f"  [WARNING] Source '{source}' not available -- skipping checks against {source}.")
             continue
 
         for check in rule.get("checks", []):
@@ -990,7 +990,7 @@ def run(folder: Path, router_name: str = None) -> bool:
     }
     suffix = f"_{router_name}" if router_name else ""
     output_path = Path(__file__).parent / "data" / f"health_check_results{suffix}.json"
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
     print(f"Results written to {output_path}")
 

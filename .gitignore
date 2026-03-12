@@ -1,5 +1,6 @@
 # Gather-diagnostics test data (potentially sensitive customer data)
 test_gds/
+back-end/uploads/
 
 # Generated output files
 data/health_check_results.json
@@ -7,6 +8,7 @@ data/router_context.json
 data/HA_pair_validation.json
 data/replication_pair_validation.json
 data/context_output.txt
+back-end/data/
 
 # Archive files
 *.tgz
@@ -19,6 +21,10 @@ __pycache__/
 *.pyo
 .venv/
 venv/
+
+# Node / frontend
+front-end/node_modules/
+front-end/dist/
 
 # Claude — exclude session/state data but track plugins
 .claude/projects/
