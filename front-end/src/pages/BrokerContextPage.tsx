@@ -218,51 +218,59 @@ function BrokerContextPage() {
 
                           {broker.spool_config && (<>
                             <span className="text-gray-500">Message Spool:</span>
-                            <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.spool_config} / {broker.spool_oper}</span>
+                            <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.spool_config}{broker.spool_oper ? ` / ${broker.spool_oper}` : ''}</span>
                           </>)}
 
                           {broker.redun_config && (<>
                             <span className="text-gray-500">Redundancy:</span>
                             <span className={`font-semibold min-w-0 break-words ${broker.redun_status === 'Up' ? 'text-green-600' : 'text-red-600'}`}>
-                              {broker.redun_config} / {broker.redun_status}
+                              {broker.redun_config}{broker.redun_status ? ` / ${broker.redun_status}` : ''}
                             </span>
                           </>)}
 
                           {broker.csync_config && (<>
                             <span className="text-gray-500">Config Sync:</span>
                             <span className={`font-semibold min-w-0 break-words ${broker.csync_oper === 'Up' ? 'text-green-600' : 'text-red-600'}`}>
-                              {broker.csync_config} / {broker.csync_oper}
+                              {broker.csync_config}{broker.csync_oper ? ` / ${broker.csync_oper}` : ''}
                             </span>
                           </>)}
                         </div>
 
                         {/* ── Right column: redundancy + replication topology ── */}
                         <div className="flex-1 border-l border-gray-200 pl-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 content-start">
-                          <span className="text-gray-500">Redundancy Mode:</span>
-                          <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.redundancy_mode || 'N/A'}</span>
+                          {broker.redun_status === 'Up' && (<>
+                            <span className="text-gray-500">Redundancy Mode:</span>
+                            <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.redundancy_mode || 'N/A'}</span>
 
-                          <span className="text-gray-500">Redundancy Role:</span>
-                          <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.redundancy_role || 'N/A'}</span>
+                            <span className="text-gray-500">Redundancy Role:</span>
+                            <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.redundancy_role ? `AD-${broker.redundancy_role}` : 'N/A'}</span>
 
-                          <span className="text-gray-500">A/S Role:</span>
-                          <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.active_standby_role || 'N/A'}</span>
+                            <span className="text-gray-500">A/S Role:</span>
+                            <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.active_standby_role || 'N/A'}</span>
+                          </>)}
 
                           {broker.mate_router && (<>
                             <span className="text-gray-500">Mate Router:</span>
                             <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.mate_router}</span>
                           </>)}
 
-                          {broker.replication_active && (<>
-                            <div className="col-span-2 border-t border-gray-200 my-0.5" />
+                          {broker.replication_status && (<>
+                            {(broker.redun_status === 'Up' || broker.mate_router) && (
+                              <div className="col-span-2 border-t border-gray-200 my-0.5" />
+                            )}
                             <span className="text-gray-500">Replication:</span>
-                            <span className="font-semibold text-solace-blue">Active</span>
+                            <span className={`font-semibold min-w-0 break-words ${
+                              broker.replication_status === 'Enabled / Up' ? 'text-green-600' :
+                              broker.replication_status === 'N/A' ? 'text-gray-500' :
+                              'text-red-600'
+                            }`}>{broker.replication_status}</span>
 
-                            {broker.replication_mate && (<>
+                            {broker.replication_active && broker.replication_mate && (<>
                               <span className="text-gray-500">Repl. Mate:</span>
                               <span className="font-semibold text-gray-800 min-w-0 break-words">{broker.replication_mate}</span>
                             </>)}
 
-                            {broker.replication_site && (<>
+                            {broker.replication_active && broker.replication_site && (<>
                               <span className="text-gray-500">Repl. Site:</span>
                               <span className={`font-semibold min-w-0 break-words ${broker.replication_site.toLowerCase().includes('down') ? 'text-red-600' : 'text-green-600'}`}>
                                 {broker.replication_site}
