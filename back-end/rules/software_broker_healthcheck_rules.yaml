@@ -1,0 +1,5 @@
+# software_broker_healthcheck_rules.yaml
+# Health check rules for Solace software brokers (PubSub+ software edition).
+# Structure mirrors appliance_healthcheck_rules.yaml.
+
+rules: []

@@ -42,13 +42,13 @@ class _Tee:
 # ---------------------------------------------------------------------------
 
 def load_rules(rules_path: Path) -> dict:
-    """Load healthcheck_rules.yaml."""
+    """Load appliance_healthcheck_rules.yaml."""
     with open(rules_path, "r") as f:
         return yaml.safe_load(f)
 
 
 def load_troubleshooting_rules(path: Path) -> dict:
-    """Load further_troubleshooting_rules.yaml. Returns empty dict if file is missing."""
+    """Load appliance_further_troubleshooting_rules.yaml. Returns empty dict if file is missing."""
     if not path.exists():
         return {}
     with open(path, "r") as f:
@@ -824,9 +824,9 @@ def run(folder: Path, router_name: str = None) -> bool:
     """Run health checks against a gather-diagnostics folder. Returns True if any checks failed."""
     folder = resolve_folder(folder)
 
-    rules_path = Path(__file__).parent / "rules" / "healthcheck_rules.yaml"
+    rules_path = Path(__file__).parent / "rules" / "appliance_healthcheck_rules.yaml"
     if not rules_path.exists():
-        print(f"ERROR: healthcheck_rules.yaml not found at {rules_path}")
+        print(f"ERROR: appliance_healthcheck_rules.yaml not found at {rules_path}")
         sys.exit(1)
 
     print(f"Diagnostics folder : {folder.resolve()}")
@@ -837,7 +837,7 @@ def run(folder: Path, router_name: str = None) -> bool:
     logs = load_logs(folder)
     rules = load_rules(rules_path).get("rules", [])
 
-    troubleshooting_path = Path(__file__).parent / "rules" / "further_troubleshooting_rules.yaml"
+    troubleshooting_path = Path(__file__).parent / "rules" / "appliance_further_troubleshooting_rules.yaml"
     troubleshooting_rules = load_troubleshooting_rules(troubleshooting_path)
 
     reference_date, date_is_fallback = find_latest_log_date(logs)

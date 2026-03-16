@@ -40,7 +40,7 @@ handle_gather_diagnostics  →  establish_context  →  [user selects routers]
 
 ### Rules engine (`health_check.py`)
 
-Health checks are entirely driven by `rules/healthcheck_rules.yaml`. Each rule targets a named section and runs one or more typed checks against `cli-diagnostics.txt` or log files.
+Health checks are entirely driven by `rules/appliance_healthcheck_rules.yaml`. Each rule targets a named section and runs one or more typed checks against `cli-diagnostics.txt` or log files.
 
 **Check types:**
 - `regex` / `contains` / `not_contains_regex` — pattern match on CLI output
@@ -54,7 +54,7 @@ Health checks are entirely driven by `rules/healthcheck_rules.yaml`. Each rule t
 
 **Output suppression:** Passing sections produce no output unless they generated INFO/WARNING lines during the check. Captured via `contextlib.redirect_stdout`.
 
-`rules/further_troubleshooting_rules.yaml` defines per-section log grep steps that run only on FAILs and populate `troubleshooting_context` in results JSON.
+`rules/appliance_further_troubleshooting_rules.yaml` defines per-section log grep steps that run only on FAILs and populate `troubleshooting_context` in results JSON.
 
 ### Context extraction (`establish_context.py`)
 
@@ -66,7 +66,7 @@ GD archives typically extract to `<folder>/<folder>/cli-diagnostics.txt` (double
 
 ### Troubleshooting report (built into `health_check.py`)
 
-When any section FAILs, `health_check.py` automatically prints a troubleshoot report (log grep matches and correlated events from `further_troubleshooting_rules.yaml`). No separate script is needed.
+When any section FAILs, `health_check.py` automatically prints a troubleshoot report (log grep matches and correlated events from `appliance_further_troubleshooting_rules.yaml`). No separate script is needed.
 
 ### Plugin commands
 

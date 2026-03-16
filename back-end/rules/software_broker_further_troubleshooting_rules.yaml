@@ -1,0 +1,5 @@
+# software_broker_further_troubleshooting_rules.yaml
+# Per-section further troubleshooting steps for software broker FAILs.
+# Structure mirrors appliance_further_troubleshooting_rules.yaml.
+
+sections: {}

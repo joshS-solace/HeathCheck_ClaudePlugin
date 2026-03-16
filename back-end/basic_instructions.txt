@@ -7,7 +7,7 @@ Here is a flow of steps for you to loosely follow in the program
 2. Capture the cli-diagnostics.txt file to use for later analysis, if it does not exist throw an error, and say why.
 3. The other files we need are the .log files, located inside the gather-diagnostics folder-name/usr/sw/jail/logs where you can see "command.log", "debug.log", "event.log" and typically there will be e.g event.log.1, event.log.2, etc.
 4. Capture those .log files to use for later analysis, if some are missing its ok, just output a warning saying e.g command.log is missing, but if event.log.x is missing it doesn't matter.
-5. Capture the healthcheck_rules.yaml file located in the current rule folder, it shows the health-check section and rules.
+5. Capture the appliance_healthcheck_rules.yaml file located in the current rule folder, it shows the health-check section and rules.
 6. Perform the health-check on the appliance, here is how you will do this:
 - For each section of the health-check (e.g 1.1, 1.2, etc) follow the steps for that section, if the output does not match the output from the cli-diagnostics.txt or the x.log (whichever the health check specifies, default is cli-diagnostics.txt) output "Section x failed because of y and z".
 	- If the health-check asked you to perform any grep command, output those to the user, with a time and source.

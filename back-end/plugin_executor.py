@@ -248,7 +248,7 @@ class PluginExecutor:
 
         # Build file references so Claude can read them directly
         data_dir = SCRIPT_DIR / "data"
-        rules_file = SCRIPT_DIR / "rules" / "healthcheck_rules.yaml"
+        rules_file = SCRIPT_DIR / "rules" / "appliance_healthcheck_rules.yaml"
 
         broker = context.get('broker', '') if context else ''
         file_refs = []
