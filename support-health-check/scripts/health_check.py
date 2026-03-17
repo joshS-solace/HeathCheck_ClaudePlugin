@@ -870,7 +870,7 @@ def section_group_key(section_id: str) -> str:
 # Entry point
 # ---------------------------------------------------------------------------
 
-def run(folder: Path, router_name: str = None) -> bool:
+def run(folder: Path, router_name: str = None, output_dir: Path = None) -> bool:
     """Run health checks against a gather-diagnostics folder. Returns True if any checks failed."""
     folder = resolve_folder(folder)
 
@@ -1048,7 +1048,9 @@ def run(folder: Path, router_name: str = None) -> bool:
         "results": json_results,
     }
     suffix = f"_{router_name}" if router_name else ""
-    output_path = Path(__file__).parent / "data" / f"health_check_results{suffix}.json"
+    results_dir = output_dir if output_dir is not None else Path(__file__).parent / "data"
+    results_dir.mkdir(parents=True, exist_ok=True)
+    output_path = results_dir / f"health_check_results{suffix}.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(output, f, indent=2)
     print(f"Results written to {output_path}")
@@ -1063,13 +1065,19 @@ def run(folder: Path, router_name: str = None) -> bool:
 def main():
     args = sys.argv[1:]
     router_name = None
+    output_dir = None
     if "--router-name" in args:
         idx = args.index("--router-name")
         router_name = args[idx + 1]
         args = args[:idx] + args[idx + 2:]
 
+    if "--output-dir" in args:
+        idx = args.index("--output-dir")
+        output_dir = Path(args[idx + 1])
+        args = args[:idx] + args[idx + 2:]
+
     if not args:
-        print("Usage:   python health_check.py <gather-diagnostics-folder> [--router-name <name>]")
+        print("Usage:   python health_check.py <gather-diagnostics-folder> [--router-name <name>] [--output-dir <dir>]")
         print("Example: python health_check.py gather-diagnostics-20240101")
         sys.exit(1)
 
@@ -1078,7 +1086,8 @@ def main():
         print(f"ERROR: Folder not found: {folder}")
         sys.exit(1)
 
-    data_dir = Path(__file__).parent / "data"
+    data_dir = output_dir if output_dir is not None else Path(__file__).parent / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
     suffix = f"_{router_name}" if router_name else ""
     tee = _Tee(data_dir / f"health_check_output{suffix}.txt")
     sys.stdout = tee
@@ -1086,7 +1095,7 @@ def main():
     print("Solace Appliance Health Check")
     print("=" * 50)
 
-    run(folder, router_name=router_name)
+    run(folder, router_name=router_name, output_dir=data_dir)
 
     sys.stdout = tee._stdout
     tee.close()

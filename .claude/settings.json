@@ -1,7 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Read(./data/*)"
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(cd * && python *)",
+      "Bash(claude mcp *)",
+      "Bash(mv *)",
+      "mcp__atlassian__getConfluencePage",
+      "mcp__atlassian__searchAtlassian"
     ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "atlassian"
+  ],
+  "extraKnownMarketplaces": {
+    "support-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "SolaceDev/support-marketplace"
+      }
+    }
   }
 }

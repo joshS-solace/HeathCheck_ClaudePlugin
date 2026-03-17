@@ -541,14 +541,16 @@ def validate_ha_triplets(contexts: list):
         return 3
 
     def _enrich_node_type(member: dict, ctx_by_name: dict) -> str:
-        """For Message-Router nodes, prefix with Primary/Backup if context is available."""
+        """Return Primary, Backup, or Monitor as the display node type."""
         node_type = member.get("node_type", "")
+        if node_type.lower() == "monitor":
+            return "Monitor"
         if node_type.lower() == "message-router":
             ctx = ctx_by_name.get(member["name"])
             if ctx:
                 role = ctx.get("active_standby_role", "")
                 if role in ("Primary", "Backup"):
-                    return f"{role} {node_type}"
+                    return role
         return node_type
 
     triplets_json = []
@@ -818,18 +820,26 @@ def validate_ha_pairs(contexts: list):
 def main():
     sys.stdout.reconfigure(encoding='utf-8')
 
-    if len(sys.argv) < 2:
+    args = sys.argv[1:]
+    output_dir = None
+    if "--output-dir" in args:
+        idx = args.index("--output-dir")
+        output_dir = Path(args[idx + 1])
+        args = args[:idx] + args[idx + 2:]
+
+    if not args:
         print("Usage:")
-        print("  python establish_context.py <folder> [folder2] [folder3] ...")
+        print("  python establish_context.py <folder> [folder2] ... [--output-dir <dir>]")
         sys.exit(1)
 
-    folders = list(dict.fromkeys(Path(a) for a in sys.argv[1:]))
+    folders = list(dict.fromkeys(Path(a) for a in args))
     for f in folders:
         if not f.exists() or not f.is_dir():
             print(f"[ERROR] Folder not found: {f}")
             sys.exit(1)
 
-    data_dir = Path(__file__).parent / "data"
+    data_dir = output_dir if output_dir is not None else Path(__file__).parent / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
     tee = _Tee(data_dir / "context_output.txt")
     sys.stdout = tee
 

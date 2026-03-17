@@ -156,6 +156,29 @@ def handle(arg: str) -> str | None:
     return current.name
 
 
+def auto_discover_gd(search_dir: Path) -> list[str]:
+    """
+    Auto-discover gather-diagnostics artifacts in a directory.
+    Looks for .tgz.p7m files, .tgz files, and already-extracted folders.
+    Returns deduplicated list of paths (one per base name, preferring the
+    most-raw form: .tgz.p7m > .tgz > folder).
+    """
+    candidates = {}  # base_name -> (priority, path)
+    for p in search_dir.glob("gather-diagnostics*.tgz.p7m"):
+        base = strip_extensions(p).name
+        candidates[base] = (0, str(p))
+    for p in search_dir.glob("gather-diagnostics*.tgz"):
+        base = strip_extensions(p).name
+        if base not in candidates:
+            candidates[base] = (1, str(p))
+    for p in search_dir.iterdir():
+        if p.is_dir() and p.name.startswith("gather-diagnostics"):
+            base = strip_extensions(p).name
+            if base not in candidates:
+                candidates[base] = (2, str(p))
+    return [path for _, (_, path) in sorted(candidates.items())]
+
+
 def pick_files() -> list[str]:
     """Open a file picker dialog and return selected file paths."""
     root = Tk()
@@ -199,9 +222,14 @@ def main():
     clear_data_dir()
 
     if len(sys.argv) < 2:
-        args = pick_files()
+        args = auto_discover_gd(Path.cwd())
         if not args:
-            sys.exit(0)
+            if os.environ.get("DISPLAY") or sys.platform == "win32":
+                args = pick_files()
+            if not args:
+                print("[ERROR] No gather-diagnostics files found in current directory.")
+                print("  Provide paths as arguments, or run from a directory containing gather-diagnostics files.")
+                sys.exit(1)
     else:
         args = recombine_args(sys.argv[1:])
 

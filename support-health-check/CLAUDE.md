@@ -1,20 +1,20 @@
-# CLAUDE.md
+# CLAUDE.md — support-health-check plugin
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file extends the root marketplace CLAUDE.md with context specific to the `support-health-check` plugin. It provides guidance for working with the plugin's scripts, rules, and commands.
 
 ## Commands
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt   # pyyaml
+pip install -r support-health-check/requirements.txt   # pyyaml
 
 # Full orchestrated workflow (file picker if no args)
-python run_health_check_application.py [gd-folder ...]
+python support-health-check/scripts/run_health_check_application.py [gd-folder ...]
 
 # Individual steps
-python handle_gather_diagnostics.py <gd-file-or-folder> [...]
-python establish_context.py <gd-folder> [gd-folder2 ...]
-python health_check.py <gd-folder>
+python support-health-check/scripts/handle_gather_diagnostics.py <gd-file-or-folder> [...]
+python support-health-check/scripts/establish_context.py <gd-folder> [gd-folder2 ...]
+python support-health-check/scripts/health_check.py <gd-folder>
 ```
 
 ## Architecture
@@ -40,7 +40,7 @@ handle_gather_diagnostics  →  establish_context  →  [user selects routers]
 
 ### Rules engine (`health_check.py`)
 
-Health checks are entirely driven by `rules/appliance_healthcheck_rules.yaml`. Each rule targets a named section and runs one or more typed checks against `cli-diagnostics.txt` or log files.
+Health checks are entirely driven by `support-health-check/scripts/rules/appliance_healthcheck_rules.yaml`. Each rule targets a named section and runs one or more typed checks against `cli-diagnostics.txt` or log files.
 
 **Check types:**
 - `regex` / `contains` / `not_contains_regex` — pattern match on CLI output
@@ -54,7 +54,7 @@ Health checks are entirely driven by `rules/appliance_healthcheck_rules.yaml`. E
 
 **Output suppression:** Passing sections produce no output unless they generated INFO/WARNING lines during the check. Captured via `contextlib.redirect_stdout`.
 
-`rules/appliance_further_troubleshooting_rules.yaml` defines per-section log grep steps that run only on FAILs and populate `troubleshooting_context` in results JSON.
+`support-health-check/scripts/rules/appliance_further_troubleshooting_rules.yaml` defines per-section log grep steps that run only on FAILs and populate `troubleshooting_context` in results JSON.
 
 ### Context extraction (`establish_context.py`)
 
@@ -70,6 +70,6 @@ When any section FAILs, `health_check.py` automatically prints a troubleshoot re
 
 ### Plugin commands
 
-`plugin/` — shareable Claude Code plugin (load with `claude --plugin-dir ./plugin`):
+`support-health-check/` — shareable Claude Code plugin (load with `claude --plugin-dir ./plugin`):
 - `/health-check:initialize <gd1> <gd2> ...` — runs handle_gather_diagnostics + establish_context
 - `/health-check:analyze <router-name> ...` — runs health_check by router name from `router_context.json`
