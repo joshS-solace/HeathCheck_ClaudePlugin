@@ -348,6 +348,10 @@ def main():
         tgz_paths = decrypt_all(encrypted)
         for tgz_path in tgz_paths:
             unencrypted.append((tgz_path, "tgz"))
+    else:
+        # No encrypted files — signal immediately so the polling loop exits early
+        PROGRAM_DATA_DIR.mkdir(exist_ok=True)
+        (PROGRAM_DATA_DIR / "auth_url.txt").write_text("NO_AUTH_NEEDED")
 
     # Phase 2: Extract
     processed = extract_all(unencrypted)
