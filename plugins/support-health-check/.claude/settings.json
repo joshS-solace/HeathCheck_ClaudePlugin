@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(python3 *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "mcp__atlassian__searchAtlassian",
+      "mcp__atlassian__getConfluencePage"
+    ]
+  },
+  "extraKnownMarketplaces": {
+    "support-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "SolaceDev/support-marketplace"
+      }
+    }
+  }
+}
