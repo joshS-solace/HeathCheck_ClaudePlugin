@@ -29,6 +29,12 @@ from pathlib import Path
 from tkinter import Tk
 from tkinter.filedialog import askopenfilenames
 
+# Ensure stdout/stderr can handle Unicode on Windows (e.g. emoji from vault tool)
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 SCRIPT_DIR       = Path(__file__).parent
 DECRYPT_CMS      = SCRIPT_DIR / "decrypt-cms.exe"
 PROGRAM_DATA_DIR = SCRIPT_DIR.parent / "program_data"
@@ -98,6 +104,8 @@ def decrypt(p7m_path: Path) -> Path:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
     with open(auth_url_file, "w") as auth_f:

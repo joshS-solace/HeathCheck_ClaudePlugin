@@ -91,7 +91,8 @@ def extract_command_output(diagnostics: str, command: str) -> str:
     sec_sep = r"[=#]{5,}"
     pat_a = (
         rf"(?:{any_sep})\s*\n"
-        rf"\s*#?\s*{escaped}[^\n]*\n"
+        rf"[^\n]*{escaped}[^\n]*\n"
+        rf"(?:[^\n]*\n)*?"
         rf"\s*{any_sep}\s*\n"
         rf"(.*?)"
         rf"(?=\n{sec_sep}|\Z)"
@@ -124,8 +125,15 @@ def _parse_redundancy_group(output: str) -> list:
         # Skip header and separator lines
         if re.match(r'^[-=]+', stripped) or re.match(r'^Node Router-Name', stripped, re.IGNORECASE):
             continue
-        # Skip continuation/indented lines and the current-node asterisk marker
-        if line.startswith(' ') or stripped == '*' or stripped.startswith('* -'):
+        # Handle indented continuation lines and current-node asterisk marker.
+        # Router names that exceed the column width (17 chars) wrap to the next
+        # line with the remainder indented at position 2 (e.g. "  y" or "  ring").
+        # Detect by checking whether positions 2-17 of the line have non-space content.
+        if line.startswith(' '):
+            if rows and not stripped.startswith('*'):
+                name_cont = line[2:18].rstrip().rstrip('*')
+                if name_cont and name_cont.replace('-', '').isalnum():
+                    rows[-1]["name"] += name_cont
             continue
         # Parse: name  type  addr  status  (split on 2+ spaces)
         # Strip trailing * from name — Solace appends * to mark the current node
@@ -441,8 +449,8 @@ def broker_site_label(ctx: dict) -> str:
 
 
 def _broker_order(c):
-    role_rank = 0 if c.get("redundancy_role") == "Primary" else 1
-    act_rank  = 0 if c.get("active_standby_role") == "Active" else 1
+    role_rank = 0 if c.get("redundancy_role") in ("Active", "Primary") else 1
+    act_rank  = 0 if c.get("active_standby_role") in ("Active", "Primary") else 1
     return (role_rank, act_rank)
 
 
