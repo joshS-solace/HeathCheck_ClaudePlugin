@@ -15,7 +15,7 @@ Steps:
    - If `$ARGUMENTS` is empty, the script auto-discovers gather-diagnostics files in the current working directory.
    - If `$ARGUMENTS` contains paths, those are used directly.
 4. Run this Bash command (foreground, timeout 35000) to poll for the Microsoft auth output:
-   `for i in 1 2 3 4 5 6; do sleep 5; if [ -f "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt" ] && [ -s "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt" ]; then cat "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt"; break; fi; done`
+   `for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do sleep 2; if [ -f "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt" ] && [ -s "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt" ]; then cat "${CLAUDE_SKILL_DIR}/program_data/auth_url.txt"; break; fi; done`
    - Read the output and look for a line starting with `https://` and a line containing `Enter the code:`. Display both to the user in a prominent block:
      ```
      ACTION REQUIRED — Microsoft authentication needed:

@@ -103,8 +103,9 @@ def decrypt(p7m_path: Path) -> Path:
     with open(auth_url_file, "w") as auth_f:
         for line in proc.stdout:
             print(line, end="", flush=True)
-            auth_f.write(line)
-            auth_f.flush()
+            if "https://" in line or "enter the code" in line.lower():
+                auth_f.write(line)
+                auth_f.flush()
 
     proc.wait()
 
